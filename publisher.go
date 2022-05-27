@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -223,4 +224,85 @@ func LinearDelay(delay time.Duration) RetryDelayFunc {
 	}
 
 	return fn
+}
+
+// ConstantPublisher based on FireForgetPublisher
+type ConstantPublisher struct {
+	pool *LightningPool
+	ch   *amqp.Channel
+}
+
+// NewConstantPublisher returns a new instance of ConstantPublisher.
+func NewConstantPublisher(p *LightningPool) (*ConstantPublisher, error) {
+	// create publisher
+	pub := &ConstantPublisher{
+		pool: p,
+	}
+
+	// get channel
+	var err error
+	pub.ch, err = p.Channel(context.Background())
+	if err != nil {
+		if checkErrorAboutIDSpace(err) {
+			// reopen channel
+			err := p.conn.conn.Close()
+			if err != nil {
+				return nil, errors.New("failed to close (reopen) conn to get publisher channel: " + err.Error())
+			}
+
+			// retry
+			time.Sleep(sleepBeforeReconnect)
+			pub.ch, err = p.Channel(context.Background())
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to get channel for publisher (after conn reopen)")
+			}
+		}
+		return nil, errors.Wrap(err, "failed to get channel for publisher")
+	}
+
+	p.Release(pub.ch)
+	return pub, nil
+}
+
+func checkErrorAboutIDSpace(err error) bool {
+	return strings.Contains(err.Error(), "channel id space")
+}
+
+// check if channel or connections is closed
+func checkErrorAboutCClosed(err error) bool {
+	return strings.Contains(err.Error(), "channel/connection is not open")
+}
+
+func (p *ConstantPublisher) tryPublish(exchange, key string, msg amqp.Publishing) error {
+	return p.ch.Publish(exchange, key, publisherMandatory, publisherImmediate, msg)
+}
+
+// Publish sends msg to an exchange on the RabbitMQ.
+func (p *ConstantPublisher) Publish(ctx context.Context, exchange, key string, msg amqp.Publishing) error {
+	err := p.tryPublish(exchange, key, msg)
+	if err != nil {
+		if checkErrorAboutCClosed(err) {
+			p.ch, err = p.pool.Channel(context.Background())
+			if err != nil {
+				return errors.Wrap(err, "failed to get new channel from pool to publish msg")
+			}
+		}
+		if checkErrorAboutIDSpace(err) {
+			// reopen conn
+			err := p.pool.conn.conn.Close()
+			if err != nil {
+				return errors.New("failed to close (reopen) conn: " + err.Error())
+			}
+
+			// next try
+			time.Sleep(sleepBeforeReconnect)
+			err = p.tryPublish(exchange, key, msg)
+			if err != nil {
+				return errors.Wrap(err, "failed to publish message after reopen conn")
+			}
+		}
+		return errors.Wrap(err, "failed to publish message")
+	}
+
+	return nil
 }
