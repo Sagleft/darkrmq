@@ -265,11 +265,17 @@ func NewConstantPublisher(p *LightningPool) (*ConstantPublisher, error) {
 }
 
 func checkErrorAboutIDSpace(err error) bool {
+	if err == nil {
+		return false
+	}
 	return strings.Contains(err.Error(), "channel id space")
 }
 
 // check if channel or connections is closed
 func checkErrorAboutCClosed(err error) bool {
+	if err == nil {
+		return false
+	}
 	return strings.Contains(err.Error(), "channel/connection is not open")
 }
 
