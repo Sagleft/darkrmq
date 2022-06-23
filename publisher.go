@@ -239,20 +239,29 @@ func NewConstantPublisher(p *LightningPool) (*ConstantPublisher, error) {
 		pool: p,
 	}
 
-	// get channel
 	var err error
-	pub.ch, err = p.Channel(context.Background())
+	pub.ch, err = pub.Channel()
+	if err != nil {
+		return nil, err
+	}
+
+	return pub, nil
+}
+
+func (p *ConstantPublisher) Channel() (*amqp.Channel, error) {
+	// get channel
+	ch, err := p.pool.Channel(context.Background())
 	if err != nil {
 		if checkErrorAboutIDSpace(err) {
 			// reopen channel
-			err := p.conn.conn.Close()
+			err := p.pool.conn.ReopenConn()
 			if err != nil {
 				return nil, errors.New("failed to close (reopen) conn to get publisher channel: " + err.Error())
 			}
 
 			// retry
 			time.Sleep(sleepBeforeReconnect)
-			pub.ch, err = p.Channel(context.Background())
+			p.ch, err = p.pool.Channel(context.Background())
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to get channel for publisher (after conn reopen)")
 			}
@@ -260,8 +269,8 @@ func NewConstantPublisher(p *LightningPool) (*ConstantPublisher, error) {
 		return nil, errors.Wrap(err, "failed to get channel for publisher")
 	}
 
-	p.Release(pub.ch)
-	return pub, nil
+	p.pool.Release(ch)
+	return ch, nil
 }
 
 func checkErrorAboutIDSpace(err error) bool {
