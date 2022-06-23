@@ -2,6 +2,7 @@ package darkmq
 
 import (
 	"context"
+	"log"
 	"math"
 	"sync"
 	"time"
@@ -149,14 +150,17 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 			// nolint: vetshadow
 			consumeChannel, err := c.Channel(consumeCtx)
 			if err != nil {
+
 				// If we got error then stop all previously started consumers
 				// and wait before they will be finished.
 				cancel()
 
 				// check error
 				if checkErrorAboutIDSpace(err) {
-					// reopen conn
-					c.conn.Close()
+					err := c.ReopenConn()
+					if err != nil {
+						log.Println(err)
+					}
 				}
 
 				break
