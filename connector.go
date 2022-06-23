@@ -61,6 +61,17 @@ type consumerChannel struct {
 	ConsumerTag string
 }
 
+// ReopenConn - closes the connection so that a reconnection is called
+func (c *Connector) ReopenConn() error {
+	err := c.conn.Close()
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(waitAfterConnClosed)
+	return nil
+}
+
 // startConsumers is used to start Consumer "count" times.
 // Method Declare will be called once, and Consume will be called "count" times (one goroutine per call)
 // so you can scale consumer horizontally.
