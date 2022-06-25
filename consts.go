@@ -7,4 +7,6 @@ const (
 
 	publisherMandatory = false
 	publisherImmediate = false
+
+	waitAfterConnClosed = 3 * time.Second
 )

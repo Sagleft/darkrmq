@@ -2,7 +2,9 @@ package darkmq
 
 import (
 	"context"
+	"log"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -59,6 +61,17 @@ func NewConnector(cfg Config) *Connector {
 type consumerChannel struct {
 	Channel     *amqp.Channel
 	ConsumerTag string
+}
+
+// ReopenConn - closes the connection so that a reconnection is called
+func (c *Connector) ReopenConn() error {
+	err := c.conn.Close()
+	if err != nil {
+		return err
+	}
+
+	time.Sleep(waitAfterConnClosed)
+	return nil
 }
 
 // startConsumers is used to start Consumer "count" times.
@@ -138,22 +151,26 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 			// nolint: vetshadow
 			consumeChannel, err := c.Channel(consumeCtx)
 			if err != nil {
+
 				// If we got error then stop all previously started consumers
 				// and wait before they will be finished.
 				cancel()
 
 				// check error
 				if checkErrorAboutIDSpace(err) {
-					// reopen conn
-					c.conn.Close()
+					err := c.ReopenConn()
+					if err != nil {
+						log.Println(err)
+					}
 				}
 
 				break
 			}
 
+			uniqueConsumerTag := task.Consumer.GetTag() + "." + strconv.Itoa(i)
 			consumerChannels[i] = consumerChannel{
 				Channel:     consumeChannel,
-				ConsumerTag: task.Consumer.GetTag(),
+				ConsumerTag: uniqueConsumerTag,
 			}
 
 			var once sync.Once
@@ -175,7 +192,12 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 					task.Ready = make(chan struct{}, 1)
 				}
 				// nolint: vetshadow
-				err := task.Consumer.Consume(consumeCtx, consumeChannel, task.Ready)
+				err := task.Consumer.Consume(ConsumeTask{
+					Ctx:       consumeCtx,
+					Ch:        consumeChannel,
+					ReadyCh:   task.Ready,
+					UniqueTag: uniqueConsumerTag,
+				})
 				if err != nil {
 					return errors.Wrap(err, "failed to consume")
 				}
