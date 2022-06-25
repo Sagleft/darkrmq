@@ -68,10 +68,10 @@ func (c *Consumer) Declare(ctx context.Context, ch *amqp.Channel) error {
 }
 
 // Consume implement darkmq.Consumer.(Consume) interface method.
-func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel, stopCh chan struct{}) error {
+func (c *Consumer) Consume(task darkmq.ConsumeTask) error {
 	defer log.Println("consume method finished")
 
-	err := ch.Qos(
+	err := task.Ch.Qos(
 		1,     // prefetch count
 		0,     // prefetch size
 		false, // global
@@ -82,7 +82,7 @@ func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel, stopCh chan st
 		return err
 	}
 
-	msgs, err := ch.Consume(
+	msgs, err := task.Ch.Consume(
 		c.QueueName, // queue
 		c.Tag,       // consumer name
 		false,       // auto-ack
@@ -112,8 +112,8 @@ func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel, stopCh chan st
 			if err != nil {
 				log.Printf("failed to Ack message: %v", err)
 			}
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-task.Ctx.Done():
+			return task.Ctx.Err()
 		}
 	}
 }

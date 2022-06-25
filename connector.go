@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"math"
+	"strconv"
 	"sync"
 	"time"
 
@@ -166,9 +167,10 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 				break
 			}
 
+			uniqueConsumerTag := task.Consumer.GetTag() + "." + strconv.Itoa(i)
 			consumerChannels[i] = consumerChannel{
 				Channel:     consumeChannel,
-				ConsumerTag: task.Consumer.GetTag(),
+				ConsumerTag: uniqueConsumerTag,
 			}
 
 			var once sync.Once
@@ -190,7 +192,12 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 					task.Ready = make(chan struct{}, 1)
 				}
 				// nolint: vetshadow
-				err := task.Consumer.Consume(consumeCtx, consumeChannel, task.Ready)
+				err := task.Consumer.Consume(ConsumeTask{
+					Ctx:       consumeCtx,
+					Ch:        consumeChannel,
+					ReadyCh:   task.Ready,
+					UniqueTag: uniqueConsumerTag,
+				})
 				if err != nil {
 					return errors.Wrap(err, "failed to consume")
 				}
