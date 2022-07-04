@@ -252,8 +252,8 @@ func (p *ConstantPublisher) Channel() (*amqp.Channel, error) {
 	// get channel
 	ch, err := p.pool.Channel(context.Background())
 	if err != nil {
-		if checkErrorAboutIDSpace(err) {
-			// reopen channel
+		if checkErrorAboutIDSpace(err) || checkErrorAboutConnClosed(err) {
+			// reopen connection
 			err := p.pool.conn.ReopenConn()
 			if err != nil {
 				return nil, errors.New("failed to close (reopen) conn to get publisher channel: " + err.Error())
@@ -281,7 +281,7 @@ func checkErrorAboutIDSpace(err error) bool {
 }
 
 // check if channel or connections is closed
-func checkErrorAboutCClosed(err error) bool {
+func checkErrorAboutConnClosed(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -296,7 +296,7 @@ func (p *ConstantPublisher) tryPublish(exchange, key string, msg amqp.Publishing
 func (p *ConstantPublisher) Publish(ctx context.Context, exchange, key string, msg amqp.Publishing) error {
 	err := p.tryPublish(exchange, key, msg)
 	if err != nil {
-		if checkErrorAboutCClosed(err) {
+		if checkErrorAboutConnClosed(err) {
 			p.ch, err = p.pool.Channel(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "failed to get new channel from pool to publish msg")
