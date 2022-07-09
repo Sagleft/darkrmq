@@ -67,6 +67,8 @@ func (c *Consumer) Declare(ctx context.Context, ch *amqp.Channel) error {
 	return nil
 }
 
+func (c *Consumer) ErrorCallback(err error) {}
+
 // Consume implement darkmq.Consumer.(Consume) interface method.
 func (c *Consumer) Consume(task darkmq.ConsumeTask) error {
 	defer log.Println("consume method finished")

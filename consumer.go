@@ -26,4 +26,7 @@ type Consumer interface {
 
 	// GetTag - get consumer tag
 	GetTag() string
+
+	// ErrorCallback to log reconnect errors
+	ErrorCallback(err error)
 }

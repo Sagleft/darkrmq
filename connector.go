@@ -122,6 +122,7 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 		// nolint: vetshadow
 		declareChannel, err := c.Channel(task.Ctx)
 		if err != nil {
+			task.Consumer.ErrorCallback(err)
 			lastErr = errors.WithMessage(err, "failed to get channel")
 
 			continue
@@ -129,6 +130,7 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 
 		err = task.Consumer.Declare(task.Ctx, declareChannel)
 		if err != nil {
+			task.Consumer.ErrorCallback(err)
 			lastErr = errors.WithMessage(err, "failed to declare consumer")
 
 			continue
@@ -136,6 +138,7 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 
 		err = declareChannel.Close()
 		if err != nil {
+			task.Consumer.ErrorCallback(err)
 			lastErr = errors.WithMessage(err, "failed to close declareChannel")
 
 			continue
@@ -199,6 +202,7 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 					UniqueTag: uniqueConsumerTag,
 				})
 				if err != nil {
+					task.Consumer.ErrorCallback(err)
 					return errors.Wrap(err, "failed to consume")
 				}
 
