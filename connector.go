@@ -202,7 +202,9 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 					UniqueTag: uniqueConsumerTag,
 				})
 				if err != nil {
-					task.Consumer.ErrorCallback(err)
+					if !checkErrorAboutConnClosed(err) {
+						task.Consumer.ErrorCallback(err)
+					}
 					return errors.Wrap(err, "failed to consume")
 				}
 
