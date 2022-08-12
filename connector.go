@@ -122,9 +122,17 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 		// nolint: vetshadow
 		declareChannel, err := c.Channel(task.Ctx)
 		if err != nil {
+			if checkErrorAboutConnClosed(err) {
+				newErr := c.ReopenConn()
+				if newErr != nil {
+					lastErr = errors.WithMessage(err, "failed to reopen conn: "+newErr.Error())
+					task.Consumer.ErrorCallback(lastErr)
+					continue
+				}
+			}
+
 			task.Consumer.ErrorCallback(err)
 			lastErr = errors.WithMessage(err, "failed to get channel")
-
 			continue
 		}
 
