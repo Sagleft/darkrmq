@@ -450,7 +450,7 @@ func (c *Connector) DialConfig(ctx context.Context, url string, config amqp.Conf
 			err = c.conn.Close()
 			// It's not error if connection has already been closed.
 			if err != nil && err != amqp.ErrClosed {
-				return errors.WithMessage(err, "failed to close rabbitmq connection")
+				continue // failed to close old RMQ connection. ignore to reconnect
 			}
 
 			return ctx.Err()
