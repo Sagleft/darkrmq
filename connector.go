@@ -63,6 +63,15 @@ type consumerChannel struct {
 	ConsumerTag string
 }
 
+// IsConnectionAlive - check connection
+func (c *Connector) IsConnectionAlive() bool {
+	if c.conn == nil {
+		return false
+	}
+
+	return !c.conn.IsClosed()
+}
+
 // ReopenConn - closes the connection so that a reconnection is called
 func (c *Connector) ReopenConn() error {
 	err := c.conn.Close()
