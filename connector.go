@@ -2,6 +2,7 @@ package darkmq
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"strconv"
@@ -34,6 +35,9 @@ type Config struct {
 // Connector implement RabbitMQ failover.
 type Connector struct {
 	cfg Config
+
+	dialCfg amqp.Config
+	dialURL string
 
 	conn   *amqp.Connection
 	connCh chan *amqp.Connection
@@ -74,9 +78,15 @@ func (c *Connector) IsConnectionAlive() bool {
 
 // ReopenConn - closes the connection so that a reconnection is called
 func (c *Connector) ReopenConn() error {
-	err := c.conn.Close()
-	if err != nil {
-		return err
+	if c.IsConnectionAlive() {
+		err := c.conn.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := c.dialWithIt(context.Background(), c.dialURL, c.dialCfg); err != nil {
+		return fmt.Errorf("dial: %w", err)
 	}
 
 	time.Sleep(waitAfterConnClosed)
@@ -138,11 +148,18 @@ func (c *Connector) startConsumers(task StartConsumersTask) error {
 					task.Consumer.ErrorCallback(lastErr)
 					continue
 				}
-			}
 
-			task.Consumer.ErrorCallback(err)
-			lastErr = errors.WithMessage(err, "failed to get channel")
-			continue
+				declareChannel, err = c.Channel(task.Ctx)
+				if err != nil {
+					lastErr = errors.WithMessage(err, "failed to declare ch: "+err.Error())
+					task.Consumer.ErrorCallback(lastErr)
+					continue
+				}
+			} else {
+				task.Consumer.ErrorCallback(err)
+				lastErr = errors.WithMessage(err, "failed to get channel")
+				continue
+			}
 		}
 
 		err = task.Consumer.Declare(task.Ctx, declareChannel)
@@ -428,6 +445,9 @@ func (c *Connector) Dial(ctx context.Context, url string) error {
 //
 // NOTE: It's blocking method.
 func (c *Connector) DialConfig(ctx context.Context, url string, config amqp.Config) error {
+	c.dialCfg = config
+	c.dialURL = url
+
 	for {
 		err := c.dialWithIt(ctx, url, config)
 		if err != nil {
