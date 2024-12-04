@@ -58,7 +58,11 @@ func main() {
 		log.Println("consumers starting")
 		defer log.Println("consumers finished")
 
-		return conn.StartMultipleConsumers(ctx, consumer, 5)
+		return conn.StartMultipleConsumers(darkmq.StartConsumersTask{
+			Ctx:      ctx,
+			Consumer: consumer,
+			Count:    5,
+		})
 	})
 
 	g.Go(func() error {

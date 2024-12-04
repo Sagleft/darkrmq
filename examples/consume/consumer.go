@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 
+	darkmq "github.com/sagleft/darkrmq"
 	"github.com/streadway/amqp"
 )
 
@@ -63,10 +64,10 @@ func (c *Consumer) Declare(ctx context.Context, ch *amqp.Channel) error {
 }
 
 // Consume implement rabbitroutine.Consumer.(Consume) interface method.
-func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel) error {
+func (c *Consumer) Consume(payload darkmq.ConsumeTask) error {
 	defer log.Println("consume method finished")
 
-	err := ch.Qos(
+	err := payload.Ch.Qos(
 		1,     // prefetch count
 		0,     // prefetch size
 		false, // global
@@ -77,7 +78,7 @@ func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel) error {
 		return err
 	}
 
-	msgs, err := ch.Consume(
+	msgs, err := payload.Ch.Consume(
 		c.QueueName,  // queue
 		"myconsumer", // consumer name
 		false,        // auto-ack
@@ -107,8 +108,8 @@ func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel) error {
 			if err != nil {
 				log.Printf("failed to Ack message: %v", err)
 			}
-		case <-ctx.Done():
-			return ctx.Err()
+		case <-payload.Ctx.Done():
+			return payload.Ctx.Err()
 		}
 	}
 }
@@ -116,4 +117,8 @@ func (c *Consumer) Consume(ctx context.Context, ch *amqp.Channel) error {
 // GetTag - get consumer tag
 func (c *Consumer) GetTag() string {
 	return c.Tag
+}
+
+func (c *Consumer) ErrorCallback(err error) {
+	//
 }
