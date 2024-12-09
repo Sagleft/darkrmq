@@ -301,13 +301,13 @@ func (p *ConstantPublisher) tryPublish(exchange, key string, msg amqp.Publishing
 func (p *ConstantPublisher) Publish(ctx context.Context, exchange, key string, msg amqp.Publishing) error {
 	err := p.tryPublish(exchange, key, msg)
 	if err != nil {
-		if checkErrorAboutConnClosed(err) {
+		if checkErrorAboutConnClosed(err) || err == ErrChannelNotSet {
 			p.ch, err = p.pool.Channel(context.Background())
 			if err != nil {
 				return errors.Wrap(err, "failed to get new channel from pool to publish msg")
 			}
 		}
-		if checkErrorAboutIDSpace(err) || err == ErrChannelNotSet {
+		if checkErrorAboutIDSpace(err) {
 			// reopen conn
 			err := p.pool.conn.conn.Close()
 			if err != nil {
