@@ -16,7 +16,8 @@ var (
 	ErrNotFound = errors.New("rabbitmq entity not found")
 	// ErrNoRoute indicates that queue is bound that matches the routing key.
 	// @see: https://www.rabbitmq.com/amqp-0-9-1-errata.html#section_17
-	ErrNoRoute = errors.New("queue not bound")
+	ErrNoRoute       = errors.New("queue not bound")
+	ErrChannelNotSet = errors.New("channel not set")
 )
 
 // Publisher interface provides functionality of publishing to RabbitMQ.
@@ -289,6 +290,10 @@ func checkErrorAboutConnClosed(err error) bool {
 }
 
 func (p *ConstantPublisher) tryPublish(exchange, key string, msg amqp.Publishing) error {
+	if p.ch == nil {
+		return ErrChannelNotSet
+	}
+
 	return p.ch.Publish(exchange, key, publisherMandatory, publisherImmediate, msg)
 }
 
@@ -302,7 +307,7 @@ func (p *ConstantPublisher) Publish(ctx context.Context, exchange, key string, m
 				return errors.Wrap(err, "failed to get new channel from pool to publish msg")
 			}
 		}
-		if checkErrorAboutIDSpace(err) {
+		if checkErrorAboutIDSpace(err) || err == ErrChannelNotSet {
 			// reopen conn
 			err := p.pool.conn.conn.Close()
 			if err != nil {
